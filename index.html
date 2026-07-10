@@ -56,8 +56,16 @@
         <input id="threshold" type="range" min="75" max="100" value="85" step="1" aria-label="Minimum similarity to count as a match" />
       </div>
 
+      <div class="control">
+        <span class="control__label">Orientation</span>
+        <button id="flip-toggle" class="toggle is-on" type="button" role="switch" aria-checked="true" title="Also match images that are horizontal mirrors of each other">
+          <span class="toggle__dot" aria-hidden="true"></span>
+          <span class="toggle__text">Flip-aware</span>
+        </button>
+      </div>
+
       <div class="toolbar__actions">
-        <button id="run" class="btn btn--primary" type="button" disabled>Find matches</button>
+        <button id="add" class="btn btn--primary" type="button">Add images</button>
         <button id="clear" class="btn btn--ghost" type="button" disabled>Clear</button>
         <button id="how-open" class="btn btn--icon" type="button" aria-label="How it works" title="How it works">?</button>
       </div>
@@ -130,6 +138,8 @@
       captures structure rather than raw pixels, a resized or re-saved image still lines up.
       Two unrelated images still share about half their 64 bits by chance, so scores only
       become meaningful above roughly 80% — the threshold can't be dragged below that.
+      With <em>Flip-aware</em> on, each image is also fingerprinted mirrored, so a
+      horizontally-flipped copy still matches — those pairs are marked <em>⇄ Mirrored</em>.
     </p>
     <div class="how__cards">
       <article class="how__card">

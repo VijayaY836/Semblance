@@ -68,7 +68,9 @@ so the similarity score is directly visible, not just asserted.
 
 - **Fingerprint** — switch between pHash / dHash / aHash (results update live).
 - **Match threshold** — minimum similarity to count as a match (default 85%).
-- **Add images** — drag & drop, click to browse, or paste from clipboard.
+- **Flip-aware** — also match horizontal mirrors of an image (on by default); such
+  pairs are tagged **⇄ Mirrored** in the results.
+- **Add images** — the toolbar button, drag & drop, click the dropzone, or paste from clipboard.
 
 ---
 
@@ -76,6 +78,9 @@ so the similarity score is directly visible, not just asserted.
 
 - pHash uses a **separable 2D DCT-II** over a 32×32 luma grid, keeping only the
   top-left 8×8 low-frequency block; the median is taken with the DC term excluded.
+- Perceptual hashes aren't flip-invariant, so each image is fingerprinted twice
+  (normal + mirrored). A pair is compared in both orientations and the better one
+  wins, which is what lets **Flip-aware** catch horizontally-mirrored copies.
 - Grayscale uses Rec. 601 luma (`0.299R + 0.587G + 0.114B`).
 - All hashing runs off a single reused `<canvas>`; all three hashes are precomputed
   once per image on load, so switching methods and thresholds is instant.

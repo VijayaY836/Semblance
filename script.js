@@ -10,6 +10,7 @@
   const store = [];
   let algo = "p";           // 'a' | 'd' | 'p'
   let threshold = 85;
+  let flipAware = true;     // also match horizontal mirrors
   let nextId = 1;
   let lastPairs = null;
 
@@ -24,8 +25,9 @@
   const resultsEmpty = $("results-empty");
   const resultsEmptyText = $("results-empty-text");
   const resCount     = $("res-count");
-  const runBtn       = $("run");
+  const addBtn       = $("add");
   const clearBtn     = $("clear");
+  const flipToggle   = $("flip-toggle");
   const thresholdIn  = $("threshold");
   const thresholdVal = $("threshold-val");
 
@@ -35,10 +37,14 @@
   /* ============================================================
      Hashing core (verified against a reference DCT)
      ============================================================ */
-  function toGray(img, w, h) {
+  // Draw the image (optionally horizontally mirrored) and return Rec.601 luma.
+  function toGray(img, w, h, mirror) {
     canvas.width = w; canvas.height = h;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    if (mirror) { ctx.translate(w, 0); ctx.scale(-1, 1); }
     ctx.drawImage(img, 0, 0, w, h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const data = ctx.getImageData(0, 0, w, h).data;
     const gray = new Float64Array(w * h);
     for (let i = 0; i < w * h; i++) {
@@ -47,15 +53,15 @@
     return gray;
   }
 
-  function aHash(img) {
-    const g = toGray(img, 8, 8);
+  function aHash(img, mirror) {
+    const g = toGray(img, 8, 8, mirror);
     let avg = 0; for (let i = 0; i < 64; i++) avg += g[i]; avg /= 64;
     let bits = ""; for (let i = 0; i < 64; i++) bits += g[i] > avg ? "1" : "0";
     return bits;
   }
 
-  function dHash(img) {
-    const g = toGray(img, 9, 8);
+  function dHash(img, mirror) {
+    const g = toGray(img, 9, 8, mirror);
     let bits = "";
     for (let row = 0; row < 8; row++)
       for (let col = 0; col < 8; col++)
@@ -93,8 +99,8 @@
     return out;
   }
 
-  function pHash(img) {
-    const g = toGray(img, N, N);
+  function pHash(img, mirror) {
+    const g = toGray(img, N, N, mirror);
     const dct = dctTopLeft(g);
     const sorted = Array.from(dct.slice(1)).sort((a, b) => a - b);
     const median = sorted[sorted.length >> 1];
@@ -136,7 +142,8 @@
     return {
       id: nextId++, name: file.name || "pasted-image", size: file.size || 0,
       w: img.naturalWidth, h: img.naturalHeight, url, byteHash,
-      hashes: { a: aHash(img), d: dHash(img), p: pHash(img) },
+      hashes:  { a: aHash(img),       d: dHash(img),       p: pHash(img) },
+      hashesM: { a: aHash(img, true), d: dHash(img, true), p: pHash(img, true) },
     };
   }
 
@@ -157,8 +164,16 @@
     const pairs = [];
     for (let i = 0; i < store.length; i++)
       for (let j = i + 1; j < store.length; j++) {
-        const sim = similarity(store[i].hashes[algo], store[j].hashes[algo]);
-        if (sim >= threshold) pairs.push({ A: store[i], B: store[j], sim });
+        const A = store[i], B = store[j];
+        let sim = similarity(A.hashes[algo], B.hashes[algo]);
+        let mirrored = false;
+        // A perceptual hash isn't flip-invariant, so compare A against B's
+        // mirrored fingerprint too and keep whichever orientation fits best.
+        if (flipAware) {
+          const simFlip = similarity(A.hashes[algo], B.hashesM[algo]);
+          if (simFlip > sim) { sim = simFlip; mirrored = true; }
+        }
+        if (sim >= threshold) pairs.push({ A, B, sim, mirrored });
       }
     pairs.sort((x, y) => y.sim - x.sim);
     return pairs;
@@ -247,7 +262,6 @@
     }
     const n = store.length;
     libCount.textContent = n === 0 ? "no images yet" : `${n} image${n === 1 ? "" : "s"}`;
-    runBtn.disabled = n < 2;
     clearBtn.disabled = n === 0;
   }
 
@@ -291,7 +305,10 @@
     }
     resultsEmpty.hidden = true;
 
-    for (const { A, B, sim } of pairs) {
+    for (const { A, B, sim, mirrored } of pairs) {
+      // For a mirrored match, compare against B's flipped fingerprint so the
+      // score, bit count and diff grid all describe the same orientation.
+      const bHash = mirrored ? B.hashesM[algo] : B.hashes[algo];
       const t = classify(A, B, sim);
       const pair = document.createElement("div");
       pair.className = "pair";
@@ -306,6 +323,12 @@
       const badge = document.createElement("div");
       badge.className = "pair__badge tone-" + t.key + "-bg";
       badge.textContent = t.name;
+      let flag = null;
+      if (mirrored) {
+        flag = document.createElement("div");
+        flag.className = "pair__flag";
+        flag.textContent = "⇄ Mirrored";
+      }
       const bar = document.createElement("div");
       bar.className = "pair__bar";
       const fill = document.createElement("span");
@@ -313,26 +336,28 @@
       fill.style.width = "0%";
       requestAnimationFrame(() => { fill.style.width = sim.toFixed(1) + "%"; });
       bar.appendChild(fill);
-      center.append(score, badge, bar);
+      center.append(score, badge, ...(flag ? [flag] : []), bar);
       pair.appendChild(center);
 
       pair.appendChild(pairSide(B, true));
 
       const diff = document.createElement("div");
       diff.className = "pair__diff";
-      const bitsDiff = hamming(A.hashes[algo], B.hashes[algo]);
-      diff.appendChild(hashGrid(A.hashes[algo], true, B.hashes[algo]));
+      const bitsDiff = hamming(A.hashes[algo], bHash);
+      diff.appendChild(hashGrid(A.hashes[algo], true, bHash));
       const cap = document.createElement("div");
       cap.className = "pair__diff-cap";
       if (A.byteHash === B.byteHash) {
         cap.innerHTML = "same file — <b>byte-for-byte identical</b>";
       } else if (bitsDiff === 0) {
-        cap.innerHTML = "identical fingerprint — a <b>resized or re-encoded</b> copy";
+        cap.innerHTML = mirrored
+          ? "identical <b>mirror-image</b> fingerprint"
+          : "identical fingerprint — a <b>resized or re-encoded</b> copy";
       } else {
-        cap.innerHTML = `<b>${bitsDiff} / 64</b> bits differ`;
+        cap.innerHTML = `<b>${bitsDiff} / 64</b> bits differ${mirrored ? " (mirrored)" : ""}`;
       }
       diff.appendChild(cap);
-      diff.appendChild(hashGrid(B.hashes[algo], true, A.hashes[algo]));
+      diff.appendChild(hashGrid(bHash, true, A.hashes[algo]));
       pair.appendChild(diff);
 
       resultsList.appendChild(pair);
@@ -395,8 +420,16 @@
   });
   thresholdIn.addEventListener("change", autoMatch);
 
+  // --- flip-aware toggle ---
+  flipToggle.addEventListener("click", () => {
+    flipAware = !flipAware;
+    flipToggle.classList.toggle("is-on", flipAware);
+    flipToggle.setAttribute("aria-checked", String(flipAware));
+    autoMatch();
+  });
+
   // --- buttons ---
-  runBtn.addEventListener("click", autoMatch);
+  addBtn.addEventListener("click", () => fileInput.click());
   clearBtn.addEventListener("click", () => {
     store.forEach((s) => URL.revokeObjectURL(s.url));
     store.length = 0; lastPairs = null;
