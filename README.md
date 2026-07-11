@@ -4,6 +4,8 @@
 similar images using perceptual image hashing. Everything runs in the browser — no
 server, no upload, no dependencies.
 
+Demo Video : https://drive.google.com/file/d/10TotxiiRohfSFpYMzzjuS1Ffqe_hvuYz/view?usp=sharing
+
 Drop in a set of images and Semblance fingerprints each one, compares every pair, and
 shows the matches with a similarity percentage and a bit-level view of *why* they match.
 
