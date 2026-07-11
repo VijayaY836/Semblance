@@ -79,7 +79,10 @@
     <section class="pane pane--library">
       <header class="pane__head">
         <h2>Library</h2>
-        <span class="pane__count" id="lib-count">no images yet</span>
+        <div class="pane__head-right">
+          <button id="select-all" class="btn btn--ghost btn--sm" type="button" aria-pressed="true" hidden>Deselect all</button>
+          <span class="pane__count" id="lib-count">no images yet</span>
+        </div>
       </header>
       <div class="pane__body">
         <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Add images to compare">

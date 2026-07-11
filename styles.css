@@ -250,6 +250,29 @@ input[type="range"]::-moz-range-thumb {
 }
 .card:hover .card__remove, .card:focus-within .card__remove { opacity: 1; }
 .card__remove:hover { background: var(--pink); }
+
+/* select / deselect checkbox */
+.card__pick { position: absolute; top: 7px; left: 7px; cursor: pointer; z-index: 1; }
+.card__pick input { position: absolute; opacity: 0; width: 0; height: 0; }
+.card__pick-box {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px;
+  background: rgba(25,26,51,.55); border: 1.5px solid rgba(255,255,255,.7);
+  backdrop-filter: blur(4px); transition: background .15s ease, border-color .15s ease;
+}
+.card__pick-box::after {
+  content: ""; width: 5px; height: 9px; margin-top: -2px;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0);
+  transition: transform .15s ease;
+}
+.card__pick input:checked + .card__pick-box { background: var(--violet); border-color: var(--violet); }
+.card__pick input:checked + .card__pick-box::after { transform: rotate(45deg) scale(1); }
+.card__pick input:focus-visible + .card__pick-box { outline: 2px solid var(--violet); outline-offset: 2px; }
+.card.is-deselected { opacity: .55; }
+.card.is-deselected .card__thumb img { filter: grayscale(1); }
+
+/* library header actions */
+.pane__head-right { display: flex; align-items: center; gap: 10px; }
+.btn--sm { padding: 5px 11px; font-size: .72rem; border-radius: 8px; }
 .card__body { display: flex; align-items: center; gap: 9px; padding: 9px 10px; }
 .card__name { font-size: .74rem; font-weight: 500; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .card__meta { font-family: var(--font-mono); font-size: .62rem; color: var(--ink-faint); }

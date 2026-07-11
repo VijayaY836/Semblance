@@ -21,6 +21,7 @@
   const libraryGrid  = $("library-grid");
   const libraryEmpty = $("library-empty");
   const libCount     = $("lib-count");
+  const selectAllBtn = $("select-all");
   const resultsList  = $("results-list");
   const resultsEmpty = $("results-empty");
   const resultsEmptyText = $("results-empty-text");
@@ -141,6 +142,7 @@
     });
     return {
       id: nextId++, name: file.name || "pasted-image", size: file.size || 0,
+      selected: true,
       w: img.naturalWidth, h: img.naturalHeight, url, byteHash,
       hashes:  { a: aHash(img),       d: dHash(img),       p: pHash(img) },
       hashesM: { a: aHash(img, true), d: dHash(img, true), p: pHash(img, true) },
@@ -161,10 +163,11 @@
      Matching
      ============================================================ */
   function computeMatches() {
+    const active = store.filter((s) => s.selected);
     const pairs = [];
-    for (let i = 0; i < store.length; i++)
-      for (let j = i + 1; j < store.length; j++) {
-        const A = store[i], B = store[j];
+    for (let i = 0; i < active.length; i++)
+      for (let j = i + 1; j < active.length; j++) {
+        const A = active[i], B = active[j];
         let sim = similarity(A.hashes[algo], B.hashes[algo]);
         let mirrored = false;
         // A perceptual hash isn't flip-invariant, so compare A against B's
@@ -179,8 +182,10 @@
     return pairs;
   }
 
+  function selectedCount() { return store.reduce((n, s) => n + (s.selected ? 1 : 0), 0); }
+
   function autoMatch() {
-    if (store.length < 2) { lastPairs = null; renderResults(null); return; }
+    if (selectedCount() < 2) { lastPairs = null; renderResults(null); return; }
     lastPairs = computeMatches();
     renderResults(lastPairs);
   }
@@ -225,13 +230,28 @@
     libraryEmpty.hidden = store.length > 0;
     for (const item of store) {
       const card = document.createElement("div");
-      card.className = "card";
+      card.className = "card" + (item.selected ? "" : " is-deselected");
 
       const thumb = document.createElement("div");
       thumb.className = "card__thumb";
       const img = document.createElement("img");
       img.src = item.url; img.alt = item.name; img.loading = "lazy";
       thumb.appendChild(img);
+
+      const pick = document.createElement("label");
+      pick.className = "card__pick";
+      pick.title = "Include this image when finding matches";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = item.selected;
+      cb.setAttribute("aria-label", "Include " + item.name + " in matching");
+      cb.addEventListener("change", () => {
+        item.selected = cb.checked;
+        render(); autoMatch();
+      });
+      const box = document.createElement("span");
+      box.className = "card__pick-box"; box.setAttribute("aria-hidden", "true");
+      pick.append(cb, box);
+      thumb.appendChild(pick);
 
       const remove = document.createElement("button");
       remove.className = "card__remove"; remove.type = "button";
@@ -261,8 +281,17 @@
       libraryGrid.appendChild(card);
     }
     const n = store.length;
-    libCount.textContent = n === 0 ? "no images yet" : `${n} image${n === 1 ? "" : "s"}`;
+    const sel = selectedCount();
+    libCount.textContent = n === 0
+      ? "no images yet"
+      : `${sel} of ${n} selected`;
     clearBtn.disabled = n === 0;
+    if (selectAllBtn) {
+      selectAllBtn.hidden = n === 0;
+      const allOn = sel === n;
+      selectAllBtn.textContent = allOn ? "Deselect all" : "Select all";
+      selectAllBtn.setAttribute("aria-pressed", String(allOn));
+    }
   }
 
   function pairSide(item, right) {
@@ -286,10 +315,10 @@
 
     if (!pairs) {
       resultsEmpty.hidden = false;
-      resultsEmptyText.textContent = store.length < 2
-        ? "Add at least two images and matches will show up here automatically."
+      resultsEmptyText.textContent = selectedCount() < 2
+        ? "Select at least two images and matches will show up here automatically."
         : "Matches will appear here as you add images.";
-      resCount.textContent = store.length < 2 ? "—" : "0 matches";
+      resCount.textContent = selectedCount() < 2 ? "—" : "0 matches";
       return;
     }
 
@@ -434,6 +463,13 @@
     store.forEach((s) => URL.revokeObjectURL(s.url));
     store.length = 0; lastPairs = null;
     render(); renderResults(null);
+  });
+
+  // --- select / deselect all ---
+  selectAllBtn.addEventListener("click", () => {
+    const turnOn = selectedCount() < store.length; // any off → select all, else deselect all
+    store.forEach((s) => { s.selected = turnOn; });
+    render(); autoMatch();
   });
 
   // --- how-it-works modal ---
